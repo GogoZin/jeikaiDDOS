@@ -84,6 +84,8 @@ JeiKai 提供 4 種請求模式來模擬不同攻擊方式：
 4. **Bypass 模式**  
    加入 `sec-ch` 與 `fetch` 標頭，更貼近真實瀏覽器行為。
 
+5. **Basic UDP Flood**
+   最常見的 UDP 洪流 , 不關閉socket持續發送random udp
 ---
 
 ## 📜 授權條款
