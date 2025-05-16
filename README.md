@@ -50,13 +50,13 @@
 - **Windows:**
 
   ```bash
-  py jeikaidos.py
+  py jeikai.py
   ```
 
 - **Linux:**
 
   ```bash
-  python3 jeikaidos.py
+  python3 jeikai.py
   ```
 
 ---
@@ -70,13 +70,13 @@
 
 ## 🔧 支援的請求模式
 
-JeiKai 提供 4 種請求模式來模擬不同攻擊方式：
+JeiKai 提供 5 種測試模式來模擬不同攻擊方式：
 
 1. **Http Plain Flood**  
    傳統的 HTTP 請求方式，內含常見標頭。
 
 2. **HTTP/2 Rapid Reset + Continuation Flood**  
-   模擬 HTTP/2 連線重置與大標頭混合攻擊。
+   模擬 HTTP/2 連線重置與大標頭混合測試。
 
 3. **PPS（Package per Second）Flood**  
    模擬最大封包傳輸量，只包含 `Connection` 標頭。
