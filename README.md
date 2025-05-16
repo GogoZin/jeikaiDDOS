@@ -86,7 +86,6 @@ JeiKai 提供 4 種請求模式來模擬不同攻擊方式：
 
 5. **Basic UDP Flood**
 
-
    最常見的 UDP 洪流 , 不關閉socket持續發送random udp
 ---
 
