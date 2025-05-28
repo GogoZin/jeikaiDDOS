@@ -4,7 +4,6 @@ import sys
 import ssl
 import time
 import random
-import socks
 import threading
 from colorama import Fore
 from h2.config import H2Configuration
@@ -80,6 +79,7 @@ def launchThreads(tp):  #在指定時間內 無上限開啟threads
         else:
             th_going = False
             break
+    th_going = False
     return 0
 
 
@@ -190,7 +190,7 @@ def headerHandle(): #封包標頭處理
     accept = f"Accept: */*\r\nAccept-Encoding: gzip, deflate, br, zstd\r\nAccept-Language: zh-TW,zh;q=0.5\r\n"
     referer = f"Referer: {GetReferer()}\r\n"
     useragent = f"User-Agent: {random.choice(ua_list).strip()}\r\n"
-    x_for = f"X-Forwarded-For: {fakeIP()}\r\nClient-IP: {fakeIP()}\r\nVia: {fakeIP()}\r\n"
+    x_for = f"X-Forwarded-For: {fakeIP()}\r\nClient-IP: {fakeIP()}\r\nVia: 1.1 {fakeIP()}\r\n"
     cache = f"Cache-Control: no-cache, max-age=0\r\n"
     pri = f"Priority: u=1, i\r\n"
     origin = f"Origin: "
